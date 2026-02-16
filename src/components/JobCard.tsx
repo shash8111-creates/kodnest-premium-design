@@ -3,12 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bookmark, BookmarkCheck, ExternalLink, Eye, MapPin, Clock } from "lucide-react";
+import { ScoreTier } from "@/lib/match-score";
 
 interface JobCardProps {
   job: Job;
   isSaved: boolean;
   onToggleSave: (id: number) => void;
   onView: (job: Job) => void;
+  matchScore?: number;
+  scoreTier?: ScoreTier;
 }
 
 function formatPostedAgo(days: number): string {
@@ -23,14 +26,28 @@ const sourceBg: Record<string, string> = {
   Indeed: "bg-muted text-muted-foreground",
 };
 
-const JobCard = ({ job, isSaved, onToggleSave, onView }: JobCardProps) => (
+const tierStyles: Record<ScoreTier, string> = {
+  excellent: "bg-success text-success-foreground",
+  good: "bg-warning text-warning-foreground",
+  fair: "bg-secondary text-secondary-foreground",
+  low: "bg-muted text-muted-foreground",
+};
+
+const JobCard = ({ job, isSaved, onToggleSave, onView, matchScore, scoreTier }: JobCardProps) => (
   <Card className="transition-system hover:border-primary/30">
     <CardContent className="p-s3">
       <div className="flex items-start justify-between gap-s2">
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-lg font-semibold leading-tight truncate">
-            {job.title}
-          </h3>
+          <div className="flex items-center gap-s1 flex-wrap">
+            <h3 className="font-serif text-lg font-semibold leading-tight truncate">
+              {job.title}
+            </h3>
+            {matchScore !== undefined && scoreTier && (
+              <Badge className={`${tierStyles[scoreTier]} text-xs font-medium`}>
+                {matchScore}% match
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground text-sm mt-1">{job.company}</p>
         </div>
         <Badge variant="outline" className={sourceBg[job.source]}>

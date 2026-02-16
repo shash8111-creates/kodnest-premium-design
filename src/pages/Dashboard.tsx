@@ -1,10 +1,14 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { jobs, Job } from "@/data/jobs";
 import { useSavedJobs } from "@/hooks/use-saved-jobs";
+import { usePreferences } from "@/hooks/use-preferences";
+import { computeMatchScore, getScoreTier } from "@/lib/match-score";
 import JobCard from "@/components/JobCard";
 import JobDetailModal from "@/components/JobDetailModal";
 import FilterBar, { Filters } from "@/components/FilterBar";
-import { Briefcase } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Briefcase, Settings } from "lucide-react";
 
 const defaultFilters: Filters = {
   keyword: "",
@@ -17,45 +21,70 @@ const defaultFilters: Filters = {
 
 const locations = Array.from(new Set(jobs.map((j) => j.location))).sort();
 
+function extractSalaryNumber(salary: string): number {
+  const match = salary.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 const Dashboard = () => {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [viewJob, setViewJob] = useState<Job | null>(null);
+  const [matchOnly, setMatchOnly] = useState(false);
   const { isSaved, toggleSave } = useSavedJobs();
+  const { preferences, hasPreferences } = usePreferences();
+
+  const scoredJobs = useMemo(() => {
+    return jobs.map((job) => ({
+      job,
+      matchScore: hasPreferences ? computeMatchScore(job, preferences) : 0,
+    }));
+  }, [preferences, hasPreferences]);
 
   const filtered = useMemo(() => {
-    let result = [...jobs];
+    let result = [...scoredJobs];
 
+    // Threshold filter
+    if (matchOnly && hasPreferences) {
+      result = result.filter((s) => s.matchScore >= preferences.minMatchScore);
+    }
+
+    // Keyword filter
     if (filters.keyword) {
       const kw = filters.keyword.toLowerCase();
       result = result.filter(
-        (j) =>
-          j.title.toLowerCase().includes(kw) ||
-          j.company.toLowerCase().includes(kw)
+        (s) =>
+          s.job.title.toLowerCase().includes(kw) ||
+          s.job.company.toLowerCase().includes(kw)
       );
     }
     if (filters.location !== "all") {
-      result = result.filter((j) => j.location === filters.location);
+      result = result.filter((s) => s.job.location === filters.location);
     }
     if (filters.mode !== "all") {
-      result = result.filter((j) => j.mode === filters.mode);
+      result = result.filter((s) => s.job.mode === filters.mode);
     }
     if (filters.experience !== "all") {
-      result = result.filter((j) => j.experience === filters.experience);
+      result = result.filter((s) => s.job.experience === filters.experience);
     }
     if (filters.source !== "all") {
-      result = result.filter((j) => j.source === filters.source);
+      result = result.filter((s) => s.job.source === filters.source);
     }
 
+    // Sorting
     if (filters.sort === "latest") {
-      result.sort((a, b) => a.postedDaysAgo - b.postedDaysAgo);
+      result.sort((a, b) => a.job.postedDaysAgo - b.job.postedDaysAgo);
     } else if (filters.sort === "oldest") {
-      result.sort((a, b) => b.postedDaysAgo - a.postedDaysAgo);
+      result.sort((a, b) => b.job.postedDaysAgo - a.job.postedDaysAgo);
+    } else if (filters.sort === "matchScore") {
+      result.sort((a, b) => b.matchScore - a.matchScore);
+    } else if (filters.sort === "salary") {
+      result.sort((a, b) => extractSalaryNumber(b.job.salaryRange) - extractSalaryNumber(a.job.salaryRange));
     } else if (filters.sort === "company") {
-      result.sort((a, b) => a.company.localeCompare(b.company));
+      result.sort((a, b) => a.job.company.localeCompare(b.job.company));
     }
 
     return result;
-  }, [filters]);
+  }, [scoredJobs, filters, matchOnly, hasPreferences, preferences.minMatchScore]);
 
   return (
     <div className="max-w-4xl mx-auto py-s4 px-s4">
@@ -66,8 +95,31 @@ const Dashboard = () => {
         {filtered.length} job{filtered.length !== 1 ? "s" : ""} found
       </p>
 
+      {!hasPreferences && (
+        <div className="mt-s3 border border-border rounded-lg p-s3 flex items-center justify-between gap-s2 bg-card">
+          <div>
+            <p className="text-sm font-medium">Set your preferences to activate intelligent matching.</p>
+            <p className="text-xs text-muted-foreground mt-1">Match scores will appear on each job card once configured.</p>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/settings">
+              <Settings className="h-4 w-4 mr-1" />
+              Preferences
+            </Link>
+          </Button>
+        </div>
+      )}
+
       <div className="mt-s3">
-        <FilterBar filters={filters} onChange={setFilters} locations={locations} />
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          locations={locations}
+          showMatchToggle={true}
+          matchOnly={matchOnly}
+          onMatchOnlyChange={setMatchOnly}
+          hasPreferences={hasPreferences}
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -76,21 +128,23 @@ const Dashboard = () => {
             <Briefcase className="h-8 w-8 text-muted-foreground" />
           </div>
           <h2 className="text-2xl font-serif font-semibold tracking-tight text-center">
-            No matching jobs.
+            No roles match your criteria.
           </h2>
           <p className="mt-s1 text-muted-foreground text-base text-center text-prose">
-            Try adjusting your filters to see more results.
+            Adjust filters or lower your match threshold in preferences.
           </p>
         </div>
       ) : (
         <div className="mt-s3 space-y-s2">
-          {filtered.map((job) => (
+          {filtered.map(({ job, matchScore }) => (
             <JobCard
               key={job.id}
               job={job}
               isSaved={isSaved(job.id)}
               onToggleSave={toggleSave}
               onView={setViewJob}
+              matchScore={hasPreferences ? matchScore : undefined}
+              scoreTier={hasPreferences ? getScoreTier(matchScore) : undefined}
             />
           ))}
         </div>
