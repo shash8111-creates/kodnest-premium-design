@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { jobs, Job } from "@/data/jobs";
 import { useSavedJobs } from "@/hooks/use-saved-jobs";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useJobStatus } from "@/hooks/use-job-status";
 import { computeMatchScore, getScoreTier } from "@/lib/match-score";
 import JobCard from "@/components/JobCard";
 import JobDetailModal from "@/components/JobDetailModal";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Settings } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const defaultFilters: Filters = {
   keyword: "",
@@ -17,6 +19,7 @@ const defaultFilters: Filters = {
   experience: "all",
   source: "all",
   sort: "latest",
+  status: "all",
 };
 
 const locations = Array.from(new Set(jobs.map((j) => j.location))).sort();
@@ -32,6 +35,15 @@ const Dashboard = () => {
   const [matchOnly, setMatchOnly] = useState(false);
   const { isSaved, toggleSave } = useSavedJobs();
   const { preferences, hasPreferences } = usePreferences();
+  const { getStatus, setStatus } = useJobStatus();
+  const { toast } = useToast();
+
+  const handleStatusChange = (jobId: number, status: import("@/hooks/use-job-status").JobStatus) => {
+    setStatus(jobId, status);
+    if (status !== "Not Applied") {
+      toast({ title: `Status updated: ${status}` });
+    }
+  };
 
   const scoredJobs = useMemo(() => {
     return jobs.map((job) => ({
@@ -43,12 +55,10 @@ const Dashboard = () => {
   const filtered = useMemo(() => {
     let result = [...scoredJobs];
 
-    // Threshold filter
     if (matchOnly && hasPreferences) {
       result = result.filter((s) => s.matchScore >= preferences.minMatchScore);
     }
 
-    // Keyword filter
     if (filters.keyword) {
       const kw = filters.keyword.toLowerCase();
       result = result.filter(
@@ -69,8 +79,10 @@ const Dashboard = () => {
     if (filters.source !== "all") {
       result = result.filter((s) => s.job.source === filters.source);
     }
+    if (filters.status !== "all") {
+      result = result.filter((s) => getStatus(s.job.id) === filters.status);
+    }
 
-    // Sorting
     if (filters.sort === "latest") {
       result.sort((a, b) => a.job.postedDaysAgo - b.job.postedDaysAgo);
     } else if (filters.sort === "oldest") {
@@ -84,7 +96,7 @@ const Dashboard = () => {
     }
 
     return result;
-  }, [scoredJobs, filters, matchOnly, hasPreferences, preferences.minMatchScore]);
+  }, [scoredJobs, filters, matchOnly, hasPreferences, preferences.minMatchScore, getStatus]);
 
   return (
     <div className="max-w-4xl mx-auto py-s4 px-s4">
@@ -145,6 +157,8 @@ const Dashboard = () => {
               onView={setViewJob}
               matchScore={hasPreferences ? matchScore : undefined}
               scoreTier={hasPreferences ? getScoreTier(matchScore) : undefined}
+              status={getStatus(job.id)}
+              onStatusChange={handleStatusChange}
             />
           ))}
         </div>

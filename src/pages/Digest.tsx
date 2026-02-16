@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { jobs } from "@/data/jobs";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useJobStatus, StatusChange } from "@/hooks/use-job-status";
 import { computeMatchScore, getScoreTier, ScoreTier } from "@/lib/match-score";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mail, Copy, Settings, ExternalLink, AlertCircle, Clock } from "lucide-react";
+import { Mail, Copy, Settings, ExternalLink, AlertCircle, Clock, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const DIGEST_KEY_PREFIX = "jobTrackerDigest_";
@@ -52,6 +53,13 @@ const tierStyles: Record<ScoreTier, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
+const statusColors: Record<string, string> = {
+  Applied: "bg-accent text-accent-foreground",
+  Rejected: "bg-destructive text-destructive-foreground",
+  Selected: "bg-success text-success-foreground",
+  "Not Applied": "bg-muted text-muted-foreground",
+};
+
 function digestToPlainText(digest: StoredDigest): string {
   const lines = [
     `Top 10 Jobs For You — 9AM Digest`,
@@ -69,14 +77,28 @@ function digestToPlainText(digest: StoredDigest): string {
   return lines.join("\n");
 }
 
+// Build a map of jobId -> job for quick lookup
+const jobMap = new Map(jobs.map((j) => [j.id, j]));
+
 const Digest = () => {
   const { preferences, hasPreferences } = usePreferences();
+  const { history } = useJobStatus();
   const { toast } = useToast();
   const todayKey = getTodayKey();
   const [digest, setDigest] = useState<StoredDigest | null>(() => loadDigest(todayKey));
 
+  // Recent status updates (last 10, only non-"Not Applied")
+  const recentUpdates = useMemo(() => {
+    return history
+      .filter((h) => h.status !== "Not Applied")
+      .slice(0, 10)
+      .map((h) => {
+        const job = jobMap.get(h.jobId);
+        return { ...h, title: job?.title ?? "Unknown", company: job?.company ?? "" };
+      });
+  }, [history]);
+
   const generateDigest = useCallback(() => {
-    // Check if already exists
     const existing = loadDigest(todayKey);
     if (existing) {
       setDigest(existing);
@@ -175,10 +197,8 @@ const Digest = () => {
       {/* Digest content */}
       {digest && (
         <div className="mt-s3">
-          {/* Email-style card */}
           <Card className="bg-white border">
             <CardContent className="p-s4">
-              {/* Header */}
               <div className="border-b border-border pb-s3 mb-s3">
                 <h2 className="text-2xl font-serif font-semibold tracking-tight">
                   Top 10 Jobs For You — 9AM Digest
@@ -188,7 +208,6 @@ const Digest = () => {
                 </p>
               </div>
 
-              {/* Jobs list */}
               {digest.entries.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-s4">
                   <div className="rounded-full bg-muted p-s3 mb-s3">
@@ -238,7 +257,6 @@ const Digest = () => {
                 </div>
               )}
 
-              {/* Footer */}
               <div className="border-t border-border mt-s3 pt-s3">
                 <p className="text-xs text-muted-foreground text-center">
                   This digest was generated based on your preferences.
@@ -247,7 +265,6 @@ const Digest = () => {
             </CardContent>
           </Card>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-s2 mt-s3">
             <Button variant="outline" onClick={handleCopy}>
               <Copy className="h-4 w-4 mr-1" />
@@ -259,7 +276,6 @@ const Digest = () => {
             </Button>
           </div>
 
-          {/* Regenerate */}
           <div className="mt-s2">
             <Button variant="ghost" size="sm" onClick={generateDigest}>
               <Clock className="h-3.5 w-3.5 mr-1" />
@@ -267,10 +283,46 @@ const Digest = () => {
             </Button>
           </div>
 
-          {/* Simulation note */}
           <p className="mt-s3 text-xs text-muted-foreground text-center italic">
             Demo Mode: Daily 9AM trigger simulated manually.
           </p>
+        </div>
+      )}
+
+      {/* Recent Status Updates */}
+      {recentUpdates.length > 0 && (
+        <div className="mt-s4">
+          <div className="flex items-center gap-s1 mb-s2">
+            <Activity className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-xl font-serif font-semibold tracking-tight">
+              Recent Status Updates
+            </h2>
+          </div>
+          <Card className="border">
+            <CardContent className="p-s3">
+              <div className="space-y-0">
+                {recentUpdates.map((update, i) => (
+                  <div
+                    key={`${update.jobId}-${update.date}-${i}`}
+                    className="flex items-center justify-between gap-s2 py-s2 border-b border-border last:border-b-0"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{update.title}</p>
+                      <p className="text-xs text-muted-foreground">{update.company}</p>
+                    </div>
+                    <div className="flex items-center gap-s1">
+                      <Badge className={`${statusColors[update.status]} text-xs`}>
+                        {update.status}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {format(new Date(update.date), "MMM d, h:mm a")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
