@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bookmark, BookmarkCheck, ExternalLink, Eye, MapPin, Clock } from "lucide-react";
 import { ScoreTier } from "@/lib/match-score";
+import { JobStatus } from "@/hooks/use-job-status";
 
 interface JobCardProps {
   job: Job;
@@ -12,6 +13,8 @@ interface JobCardProps {
   onView: (job: Job) => void;
   matchScore?: number;
   scoreTier?: ScoreTier;
+  status?: JobStatus;
+  onStatusChange?: (jobId: number, status: JobStatus) => void;
 }
 
 function formatPostedAgo(days: number): string {
@@ -33,7 +36,16 @@ const tierStyles: Record<ScoreTier, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-const JobCard = ({ job, isSaved, onToggleSave, onView, matchScore, scoreTier }: JobCardProps) => (
+const statusStyles: Record<JobStatus, string> = {
+  "Not Applied": "bg-muted text-muted-foreground",
+  Applied: "bg-accent text-accent-foreground",
+  Rejected: "bg-destructive text-destructive-foreground",
+  Selected: "bg-success text-success-foreground",
+};
+
+const allStatuses: JobStatus[] = ["Not Applied", "Applied", "Rejected", "Selected"];
+
+const JobCard = ({ job, isSaved, onToggleSave, onView, matchScore, scoreTier, status = "Not Applied", onStatusChange }: JobCardProps) => (
   <Card className="transition-system hover:border-primary/30">
     <CardContent className="p-s3">
       <div className="flex items-start justify-between gap-s2">
@@ -67,6 +79,25 @@ const JobCard = ({ job, isSaved, onToggleSave, onView, matchScore, scoreTier }: 
       </div>
 
       <p className="text-sm font-medium mt-s1">{job.salaryRange}</p>
+
+      {/* Status buttons */}
+      {onStatusChange && (
+        <div className="flex flex-wrap items-center gap-1 mt-s2">
+          {allStatuses.map((s) => (
+            <button
+              key={s}
+              onClick={() => onStatusChange(job.id, s)}
+              className={`px-2 py-0.5 rounded-full text-xs font-medium border transition-system ${
+                status === s
+                  ? statusStyles[s] + " border-transparent"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-s2">
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">

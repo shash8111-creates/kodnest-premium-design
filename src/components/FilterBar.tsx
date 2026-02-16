@@ -17,6 +17,7 @@ export interface Filters {
   experience: string;
   source: string;
   sort: string;
+  status: string;
 }
 
 interface FilterBarProps {
@@ -100,6 +101,19 @@ const FilterBar = ({
             <SelectItem value="LinkedIn">LinkedIn</SelectItem>
             <SelectItem value="Naukri">Naukri</SelectItem>
             <SelectItem value="Indeed">Indeed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.status} onValueChange={(v) => update("status", v)}>
+          <SelectTrigger className="w-full md:w-[150px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover z-50">
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="Not Applied">Not Applied</SelectItem>
+            <SelectItem value="Applied">Applied</SelectItem>
+            <SelectItem value="Rejected">Rejected</SelectItem>
+            <SelectItem value="Selected">Selected</SelectItem>
           </SelectContent>
         </Select>
 
